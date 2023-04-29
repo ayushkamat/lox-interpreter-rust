@@ -1,12 +1,15 @@
+// --- Expressions ---
+
 use std::fmt::Display;
 
 use crate::{
     token::TokenType,
-    visitor::{self},
+    visitors::visitor::{Visitable, Visitor},
 };
 
 // definitions
 
+#[derive(Debug, Clone)]
 pub enum Literal {
     String(String),
     Number(f64),
@@ -15,20 +18,24 @@ pub enum Literal {
     Nil,
 }
 
+#[derive(Debug, Clone)]
 pub struct Grouping {
-    expr: Box<Expression>,
+    pub expr: Box<Expression>,
 }
 
+#[derive(Debug, Clone)]
 pub enum UnaryOperator {
     Not,
     Minus,
 }
 
+#[derive(Debug, Clone)]
 pub struct Unary {
-    operator: UnaryOperator,
-    expr: Box<Expression>,
+    pub operator: UnaryOperator,
+    pub expr: Box<Expression>,
 }
 
+#[derive(Debug, Clone)]
 pub enum BinaryOperator {
     Equal,
     NotEqual,
@@ -45,24 +52,33 @@ pub enum BinaryOperator {
     Comma,
 }
 
+#[derive(Debug, Clone)]
 pub struct Binary {
-    operator: BinaryOperator,
-    left_expr: Box<Expression>,
-    right_expr: Box<Expression>,
+    pub operator: BinaryOperator,
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
 }
 
+#[derive(Debug, Clone)]
 pub struct Ternary {
-    condition: Box<Expression>,
-    left_branch: Box<Expression>,
-    right_branch: Box<Expression>,
+    pub condition: Box<Expression>,
+    pub left_branch: Box<Expression>,
+    pub right_branch: Box<Expression>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Variable {
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Literal(Literal),
     Grouping(Grouping),
     Unary(Unary),
     Binary(Binary),
     Ternary(Ternary),
+    Variable(Variable),
 }
 
 // Expression constructors
@@ -88,8 +104,8 @@ impl Expression {
     pub fn binary(operator: BinaryOperator, left_expr: Expression, right_expr: Expression) -> Self {
         Expression::Binary(Binary {
             operator,
-            left_expr: Box::new(left_expr),
-            right_expr: Box::new(right_expr),
+            left: Box::new(left_expr),
+            right: Box::new(right_expr),
         })
     }
 
@@ -103,6 +119,10 @@ impl Expression {
             left_branch: Box::new(left_branch),
             right_branch: Box::new(right_branch),
         })
+    }
+
+    pub fn variable(name: String) -> Self {
+        Expression::Variable(Variable { name })
     }
 }
 
@@ -156,6 +176,16 @@ impl From<TokenType> for Literal {
     }
 }
 
+impl From<TokenType> for Variable {
+    fn from(typ: TokenType) -> Self {
+        match typ {
+            TokenType::Identifier(name) => Variable { name },
+
+            _ => panic!("unable to convert {:?} to Variable", typ),
+        }
+    }
+}
+
 // impl Display
 
 impl Display for Expression {
@@ -166,6 +196,7 @@ impl Display for Expression {
             Expression::Unary(u) => u.fmt(f),
             Expression::Binary(b) => b.fmt(f),
             Expression::Ternary(t) => t.fmt(f),
+            Expression::Variable(v) => v.fmt(f),
         }
     }
 }
@@ -188,7 +219,7 @@ impl Display for Literal {
 
 impl Display for Grouping {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "(group {})", self.expr)
+        write!(f, "({})", self.expr)
     }
 }
 
@@ -196,7 +227,7 @@ impl Display for Unary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "({} {})",
+            "{}{}",
             match self.operator {
                 UnaryOperator::Minus => "-",
                 UnaryOperator::Not => "!",
@@ -210,7 +241,8 @@ impl Display for Binary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "({} {} {})",
+            "{} {} {}",
+            self.left,
             match self.operator {
                 BinaryOperator::Equal => "==",
                 BinaryOperator::NotEqual => "!=",
@@ -224,8 +256,7 @@ impl Display for Binary {
                 BinaryOperator::Divide => "/",
                 BinaryOperator::Comma => ",",
             },
-            self.left_expr,
-            self.right_expr,
+            self.right,
         )
     }
 }
@@ -234,56 +265,65 @@ impl Display for Ternary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "({} ? {} : {})",
+            "{} ? {} : {}",
             self.condition, self.left_branch, self.right_branch,
         )
     }
 }
 
-// ExpressionTrait + impls
-
-pub trait Visitable<R> {
-    fn accept(&self, v: &dyn visitor::Visitor<R>) -> R;
+impl Display for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
+// impls
+
 impl<R> Visitable<R> for Expression {
-    fn accept(&self, v: &dyn visitor::Visitor<R>) -> R {
+    fn accept(&mut self, v: &mut dyn Visitor<R>) -> R {
         match self {
-            Expression::Literal(l) => l.accept(v),
-            Expression::Grouping(l) => l.accept(v),
-            Expression::Unary(l) => l.accept(v),
-            Expression::Binary(l) => l.accept(v),
-            Expression::Ternary(l) => l.accept(v),
+            Expression::Literal(x) => x.accept(v),
+            Expression::Grouping(x) => x.accept(v),
+            Expression::Unary(x) => x.accept(v),
+            Expression::Binary(x) => x.accept(v),
+            Expression::Ternary(x) => x.accept(v),
+            Expression::Variable(x) => x.accept(v),
         }
     }
 }
 
 impl<R> Visitable<R> for Literal {
-    fn accept(&self, v: &dyn visitor::Visitor<R>) -> R {
+    fn accept(&mut self, v: &mut dyn Visitor<R>) -> R {
         v.visit_literal_expr(self)
     }
 }
 
 impl<R> Visitable<R> for Grouping {
-    fn accept(&self, v: &dyn visitor::Visitor<R>) -> R {
+    fn accept(&mut self, v: &mut dyn Visitor<R>) -> R {
         v.visit_grouping_expr(self)
     }
 }
 
 impl<R> Visitable<R> for Unary {
-    fn accept(&self, v: &dyn visitor::Visitor<R>) -> R {
+    fn accept(&mut self, v: &mut dyn Visitor<R>) -> R {
         v.visit_unary_expr(self)
     }
 }
 
 impl<R> Visitable<R> for Binary {
-    fn accept(&self, v: &dyn visitor::Visitor<R>) -> R {
+    fn accept(&mut self, v: &mut dyn Visitor<R>) -> R {
         v.visit_binary_expr(self)
     }
 }
 
 impl<R> Visitable<R> for Ternary {
-    fn accept(&self, v: &dyn visitor::Visitor<R>) -> R {
+    fn accept(&mut self, v: &mut dyn Visitor<R>) -> R {
         v.visit_ternary_expr(self)
+    }
+}
+
+impl<R> Visitable<R> for Variable {
+    fn accept(&mut self, v: &mut dyn Visitor<R>) -> R {
+        v.visit_var_expr(self)
     }
 }

@@ -57,6 +57,8 @@ impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TokenType::Number(n) => write!(f, "{}", n),
+            TokenType::Identifier(s) => write!(f, "{}", s),
+            TokenType::String(i) => write!(f, "\"{}\"", i),
             other => write!(
                 f,
                 "{}",
@@ -84,9 +86,9 @@ impl Display for TokenType {
                     TokenType::Less => "'<'",
                     TokenType::LessEqual => "'<='",
 
-                    TokenType::Identifier(i) => &i,
-                    TokenType::String(s) => &s,
-                    TokenType::Number(n) => "", // covered by above match
+                    TokenType::Identifier(_) => "", // covered by above match
+                    TokenType::String(_) => "",     // covered by above match
+                    TokenType::Number(_) => "",     // covered by above match
 
                     TokenType::And => "'and'",
                     TokenType::Class => "'class'",
@@ -112,14 +114,8 @@ impl Display for TokenType {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub line: usize,
-}
-
-impl Token {
-    pub fn to_string(&self) -> String {
-        format!("{}, Line {}", self.token_type, self.line)
-    }
 }

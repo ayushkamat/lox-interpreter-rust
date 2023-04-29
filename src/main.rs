@@ -1,5 +1,6 @@
 use std::env;
 
+mod environment;
 mod error;
 mod grammar;
 mod lox;
@@ -7,7 +8,8 @@ mod parser;
 mod scanner;
 mod token;
 mod util;
-mod visitor;
+mod value;
+mod visitors;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

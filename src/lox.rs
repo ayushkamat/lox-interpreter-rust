@@ -3,7 +3,11 @@ use std::{
     io::{stdin, Read},
 };
 
-use crate::{grammar::Visitable, parser::Parser, scanner, visitor::AstPrinter};
+use crate::{
+    parser::Parser,
+    scanner,
+    visitors::{interpreter, printer, visitor},
+};
 
 pub struct Lox {
     pub had_error: bool,
@@ -26,6 +30,7 @@ impl Lox {
         loop {
             self.had_error = false;
             let mut buf = String::new();
+            print!(">>> ");
             let s = stdin()
                 .read_line(&mut buf)
                 .unwrap_or_else(|e| panic!("error reading line: {:?}", e));
@@ -37,21 +42,27 @@ impl Lox {
     }
 
     pub fn run(&self, s: String) {
-        println!("{}", s);
         let mut scanner = scanner::Scanner::new(s.as_str());
 
         scanner.tokenize();
 
-        // for token in scanner.tokens.iter() {
-        //     println!("{}", token.token_type);
+        let mut parser = Parser::new(scanner.tokens);
+        let mut interpreter = interpreter::Interpreter::new();
+
+        let parsed = parser.parse();
+
+        // for res in parsed.iter() {
+        //     match res {
+        //         Ok(decl) => println!("{}", decl),
+        //         Err(e) => println!("{}", e),
+        //     }
         // }
 
-        let mut parser = Parser::new(scanner.tokens);
-        let printer = AstPrinter {};
-
-        match parser.parse() {
-            Ok(expr) => printer.print(expr),
-            Err(err) => panic!("parser error: {}", err),
-        };
+        for stmt in parsed.iter() {
+            match stmt {
+                Ok(s) => interpreter.interpret(&mut s.clone()),
+                Err(e) => println!("{}", e),
+            }
+        }
     }
 }
